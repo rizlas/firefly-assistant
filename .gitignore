@@ -1,0 +1,15 @@
+.vscode
+constants.py
+config/config.yaml
+config/config.yaml.example
+
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
