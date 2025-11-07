@@ -2,12 +2,19 @@
 
 from .base import BaseParser
 from .nexi import NexiParser
-from .types import CardType, PrepaidCardBehavior, StandardCardBehavior, TransactionType
+from .types import (
+    CardType,
+    PrepaidCardBehavior,
+    StandardCardBehavior,
+    TransactionType,
+    TransferType,
+)
 
 __all__ = [
     "BaseParser",
     "NexiParser",
     "TransactionType",
+    "TransferType",
     "CardType",
     "StandardCardBehavior",
     "PrepaidCardBehavior",

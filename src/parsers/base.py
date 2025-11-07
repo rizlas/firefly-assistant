@@ -4,7 +4,12 @@ from typing import Union
 
 from src.firefly.models import Transaction
 
-from .types import PrepaidCardBehavior, StandardCardBehavior, TransactionType
+from .types import (
+    PrepaidCardBehavior,
+    StandardCardBehavior,
+    TransactionType,
+    TransferType,
+)
 
 
 class BaseParser(ABC):
@@ -19,7 +24,6 @@ class BaseParser(ABC):
             asset_account: Asset account from which transactions originate
             firefly_client: Firefly API client
             card_type: CardType enum that defines the behavior
-            transfer_keywords: Keywords to distinguish top-ups/transfers
         """
         self.firefly_client = firefly_client
         self.asset_account = asset_account
@@ -75,31 +79,36 @@ class BaseParser(ABC):
         Returns:
             Tuple of (transaction_type, final_amount)
             - transaction_type: "withdrawal", "deposit", or "transfer"
+            - transfer_type: "in" or "out" if any
             - final_amount: Absolute amount (always positive for Firefly)
         """
         final_amount = abs(amount)
 
         if self.behavior.all_positive:
             # Standard card: all positive, all expenses
-            return TransactionType.EXPENSE.value, final_amount
+            return TransactionType.EXPENSE, None, final_amount
         else:
             # Prepaid card: check keywords FIRST (before sign)
             # This handles cases where recharges appear as negative
-            if self._contains_transfer_keyword(raw_dest_account):
-                return TransactionType.TRANSFER.value, final_amount
+            contains, direction = self._check_transfer_specs(raw_dest_account)
+            if contains:
+                return TransactionType.TRANSFER, direction, final_amount
 
             # No keyword match: use sign to determine type
             if amount < 0:
                 # Negative without keyword = expense
-                return TransactionType.EXPENSE.value, final_amount
+                return TransactionType.EXPENSE, None, final_amount
             else:
+                positive_amounts_type = TransactionType.REFUND
                 # Positive without keyword = use fallback
+                # positive_is_transfer: Fallback for positive amounts without keywords
+                #      True = transfer, False = refund
                 if self.behavior.positive_is_transfer:
-                    return TransactionType.TRANSFER.value, final_amount
-                else:
-                    return TransactionType.REFUND.value, final_amount
+                    positive_amounts_type = TransactionType.TRANSFER
 
-    def _contains_transfer_keyword(self, raw_dest_account: str) -> bool:
+                return positive_amounts_type, TransferType.IN, final_amount
+
+    def _check_transfer_specs(self, raw_dest_account: str) -> bool:
         """
         Check if merchant name contains any transfer keyword.
 
@@ -107,15 +116,15 @@ class BaseParser(ABC):
             raw_dest_account: Raw merchant name
 
         Returns:
-            True if keyword found, False otherwise
+            True and direction if any keyword matches
         """
-        if not self.behavior.transfer_keywords:
-            return False
+        if not self.behavior.transfer_specs:
+            return False, None
 
         raw_lower = raw_dest_account.lower()
 
-        for keyword in self.behavior.transfer_keywords:
-            if keyword.lower() in raw_lower:
-                return True
+        for spec in self.behavior.transfer_specs:
+            if spec["keyword"].lower() in raw_lower:
+                return True, spec["direction"]
 
-        return False
+        return False, None

@@ -47,7 +47,7 @@ class CardMapping:
     For PREPAID cards:
         - card_type: "PREPAID"
         - positive_is_transfer: True/False (default False)
-        - transfer_keywords: list of keywords (default [])
+        - transfer_specs: list of keywords (default [])
     """
 
     asset_account: str
@@ -55,11 +55,11 @@ class CardMapping:
     description: str = ""
     # PREPAID only fields
     positive_is_transfer: bool = False
-    transfer_keywords: List[str] = None
+    transfer_specs: List[dict] = None
 
     def __post_init__(self):
-        if self.transfer_keywords is None:
-            self.transfer_keywords = []
+        if self.transfer_specs is None:
+            self.transfer_specs = []
 
     def to_behavior(self) -> Union[StandardCardBehavior, PrepaidCardBehavior]:
         """
@@ -73,7 +73,7 @@ class CardMapping:
         elif self.card_type.upper() == "PREPAID":
             return PrepaidCardBehavior(
                 positive_is_transfer=self.positive_is_transfer,
-                transfer_keywords=self.transfer_keywords,
+                transfer_specs=self.transfer_specs,
             )
         else:
             raise ValueError(
@@ -89,8 +89,8 @@ class CardMapping:
         #         positive_is_transfer=self.custom_config.get(
         #             "positive_is_transfer", False
         #         ),
-        #         transfer_keywords=self.custom_config.get(
-        #             "transfer_keywords", default_keywords
+        #         transfer_specs=self.custom_config.get(
+        #             "transfer_specs", default_keywords
         #         ),
         #     )
 
@@ -183,7 +183,7 @@ class Config:
                 card_type=m["card_type"],
                 description=m.get("description", ""),
                 positive_is_transfer=m.get("positive_is_transfer", False),
-                transfer_keywords=m.get("transfer_keywords", []),
+                transfer_specs=m.get("transfer_specs", []),
             )
             for m in mappings
         ]

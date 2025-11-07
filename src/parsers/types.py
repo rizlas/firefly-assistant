@@ -13,6 +13,13 @@ class TransactionType(Enum):
     TRANSFER = "transfer"
 
 
+class TransferType(Enum):
+    """Transfer types."""
+
+    IN = "in"
+    OUT = "out"
+
+
 class CardType(Enum):
     """Card type enumeration."""
 
@@ -93,7 +100,7 @@ class PrepaidCardBehavior:
         description: Brief description
         positive_is_transfer: Fallback for positive amounts without keywords
                              True = transfer, False = refund
-        transfer_keywords: List of keywords to identify transfers (case-insensitive)
+        transfer_specs: List of keywords to identify transfers (case-insensitive)
     """
 
     name: str = "Prepaid Card"
@@ -101,4 +108,12 @@ class PrepaidCardBehavior:
     type: CardType = CardType.PREPAID
     all_positive: bool = False
     positive_is_transfer: bool = False
-    transfer_keywords: List[str] = field(default_factory=list)
+    transfer_specs: List[str] = field(default_factory=list)
+
+    def __post_init__(self):
+        """Set default values and type for transfer_specs direction."""
+        for spec in self.transfer_specs:
+            if "direction" not in spec:
+                spec["direction"] = TransferType.IN
+            else:
+                spec["direction"] = TransferType(spec["direction"].lower())

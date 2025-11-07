@@ -5,7 +5,7 @@ import openpyxl
 from src.firefly.models import Transaction
 
 from .base import BaseParser
-from .types import TransactionType
+from .types import TransactionType, TransferType
 
 warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
 
@@ -32,21 +32,26 @@ class NexiParser(BaseParser):
 
             # Determine the transaction type, normalize the amount, and map the
             # destination. account
-            tx_type, total = self.classify_transaction(total, raw_dest_account)
+            tx_type, transfer_type, total = self.classify_transaction(
+                total, raw_dest_account
+            )
             dest_mapped = self.map_destination(raw_dest_account)
 
-            # For deposit and transfer, source and destination must be reversed
+            asset_account = self.asset_account
+            destination_account = dest_mapped
+
+            # For refund and transfer, source and destination must be swapped
             if tx_type in [
-                TransactionType.REFUND.value,
-                TransactionType.TRANSFER.value,
+                TransactionType.REFUND,
+                TransactionType.TRANSFER,
             ]:
-                # Money coming IN to the asset account
-                asset_account = dest_mapped
-                destination_account = self.asset_account
-            else:
-                # Withdrawal: money leaving the asset account
-                asset_account = self.asset_account
-                destination_account = dest_mapped
+                # Swap if it's a refund or the transfer type is IN
+                if (
+                    tx_type is TransactionType.REFUND
+                    or transfer_type == TransferType.IN
+                ):
+                    asset_account = dest_mapped
+                    destination_account = self.asset_account
 
             tx = Transaction(
                 date=date,
@@ -54,7 +59,7 @@ class NexiParser(BaseParser):
                 dest_account=destination_account,
                 raw_dest_account=raw_dest_account,
                 total=total,
-                type=tx_type,
+                type=tx_type.value,
                 state=state,
                 card=card_info,
                 asset_account=asset_account,

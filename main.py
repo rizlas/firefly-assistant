@@ -105,9 +105,11 @@ def choose_card(asset_account: str, config: Config):
             console.print(
                 f"  [dim]Fallback: {'transfer' if behavior.positive_is_transfer else 'refund'}[/dim]"
             )
-            if behavior.transfer_keywords:
-                keywords_preview = ", ".join(behavior.transfer_keywords[:3])
-                if len(behavior.transfer_keywords) > 3:
+            if behavior.transfer_specs:
+                keywords_preview = ", ".join(
+                    [spec["keyword"] for spec in behavior.transfer_specs[:3]]
+                )
+                if len(behavior.transfer_specs) > 3:
                     keywords_preview += "..."
                 console.print(f"  [dim]Keywords: {keywords_preview}[/dim]")
 
