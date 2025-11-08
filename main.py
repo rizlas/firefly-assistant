@@ -161,9 +161,22 @@ def main():
     console.print(f"[dim]Firefly URL: {config.firefly.url}[/dim]\n")
 
     # Main menu
+    console.print("\n[cyan]Actions:[/cyan]\n")
+    console.print("  [red][P][/red]arse   - Parse bank statement")
+    console.print("  [red][C][/red]reate  - Create transactions")
+    console.print("  [red][M][/red]anage  - Manage mappings")
+
     action = Prompt.ask(
-        "Choose action", choices=["parse", "create", "manage"], default="parse"
+        "\nChoose action",
+        choices=["parse", "p", "create", "c", "manage", "m"],
+        default="parse",
+        show_choices=False,
+        case_sensitive=False,
     )
+
+    # Map short forms to full names
+    action_map = {"p": "parse", "c": "create", "m": "manage"}
+    action = action_map.get(action, action)
 
     # Initialize Firefly client
     with console.status("[bold green]Connecting to Firefly III..."):
@@ -174,6 +187,8 @@ def main():
         except Exception as e:
             console.print(f"[red]Error connecting to Firefly:[/red] {e}")
             return
+
+    console.print(f"\n[green]✓[/green] Selected: [bold]{action}[/bold]")
 
     if action == "parse":
         # Select file
@@ -250,14 +265,22 @@ def main():
         # Only post if description is filled
         for tx in transactions:
             if not tx["description"]:
-                print(f"Transaction {tx['id']} has no description.")
+                console.print(
+                    f"[yellow]Transaction {tx['id']} has no description. Skipping...[/yellow]"
+                )
                 continue
 
             tx = Transaction.from_dict(tx)
             if not tx.category_name:
-                print(f"Warning: transaction {tx.id} has no category.")
+                console.print(f"[yellow]Transaction {tx.id} has no category.[/yellow]")
 
-            firefly.create_transaction(tx)
+            res = firefly.create_transaction(tx)
+            if res:
+                console.print(f"[green]✓[/green] Transaction {tx.id} created.")
+            else:
+                console.print(
+                    f"[yellow]Transaction {tx.id} already exists in Firefly. Skipping...[/yellow]"
+                )
 
 
 if __name__ == "__main__":

@@ -1,8 +1,12 @@
 import json
 from typing import Dict, List
 from urllib.parse import urljoin
-from src.parsers.types import TransactionType, TransferType
+
 import requests
+
+from src.parsers.types import TransactionType, TransferType
+
+from .models import Transaction
 
 
 class FireflyClient:
@@ -82,13 +86,13 @@ class FireflyClient:
 
     def transaction_exists(self, external_id):
         data = self.search_transactions(f'external_id:"{external_id}"', limit=1)
-        return len(data) == 1
+        return len(data) >= 1
 
     def get_accounts(self, type):
         """Get accounts by type (asset, expense, revenue)."""
         return self._get("accounts", type=type)
 
-    def create_transaction(self, tx):
+    def create_transaction(self, tx: Transaction) -> bool:
         """
         Creates a transaction, automatically managing account mapping.
 
@@ -96,39 +100,45 @@ class FireflyClient:
             tx: Transaction object with transaction data
 
         Returns:
-            Response from Firefly API
+            True if the transaction was created, False if it already exists
         """
-        # Get or create an auto-mapping account
-        account = tx.destination_account
+        if self.transaction_exists(tx.id):
+            return False
 
+        # Determine the account name that should be mapped and created or updated based
+        # on the transaction type
+        account_name = tx.destination_account
+
+        # For refunds, use the source account field
         if tx.type == TransactionType.REFUND:
-            account = tx.source_account
-        elif (
-            tx.type == TransactionType.TRANSFER and tx.transfer_type == TransferType.IN
-        ):
-            account = tx.source_account
-        elif (
-            tx.type == TransactionType.TRANSFER and tx.transfer_type == TransferType.OUT
-        ):
-            account = tx.destination_account
+            account_name = tx.source_account
+        # For transfers
+        elif tx.type == TransactionType.TRANSFER:
+            # use the source account field if it's an inbound transfer (i.e. money is
+            # coming into the account)
+            if tx.transfer_type == TransferType.IN:
+                account_name = tx.source_account
+            # use the destination account field if it's an outbound transfer (i.e. money
+            # is leaving the account)
+            elif tx.transfer_type == TransferType.OUT:
+                account_name = tx.destination_account
 
-        destination_id, created = self._get_or_create_account(
-            tx.account_mapping, account, self.ACCOUNT_TYPE_MAP[tx.type]
+        account_id, created = self._get_or_create_account(
+            tx.account_mapping, account_name, self.ACCOUNT_TYPE_MAP[tx.type]
         )
 
         transaction = tx.to_firefly_payload()
-        # transaction.pop("destination_name")  # Use ID, safer
-        transaction["destination_id"] = destination_id
-
         payload = {"transactions": [transaction]}
-        return self._post("transactions", payload)
+        self._post("transactions", payload)
+
+        return True
 
     # ------------------------- Create or update account ------------------------- #
 
     def _get_or_create_account(
         self,
         account_mapping: str,
-        destination_account,
+        account_name: str,
         account_type,
     ) -> tuple[str, bool]:
         """
@@ -147,13 +157,11 @@ class FireflyClient:
             created
         """
         # Search for the account by canonical name
-        accounts = self.search_accounts(
-            destination_account, field="name", type=account_type
-        )
+        accounts = self.search_accounts(account_name, field="name", type=account_type)
         existing_account = None
 
         for acc in accounts:
-            if acc["attributes"]["name"] == destination_account:
+            if acc["attributes"]["name"] == account_name:
                 existing_account = acc
                 break
 
@@ -163,14 +171,14 @@ class FireflyClient:
                 existing_account,
                 account_type,
                 account_mapping,
-                destination_account,
+                account_name,
             )
             return existing_account["id"], False
         else:
             # Account does not exist: create it with mapping
             return (
                 self._create_account_with_alias(
-                    destination_account,
+                    account_name,
                     account_type,
                     account_mapping,
                 ),
@@ -178,7 +186,7 @@ class FireflyClient:
             )
 
     def _update_account_aliases(
-        self, account: dict, account_type: str, raw_name: str, destination_account: str
+        self, account: dict, account_type: str, raw_name: str, account_name: str
     ):
         """
         Update existing account aliases if necessary.
@@ -186,33 +194,35 @@ class FireflyClient:
         Args:
             account: Account dictionary from Firefly
             raw_name: Raw name to add to aliases
-            destination_account: Canonical account name
+            account_name: Canonical account name
         """
         account_id = account["id"]
         attrs = account["attributes"]
         current_notes = attrs.get("notes") or ""
+        current_role = attrs.get("account_role")
         current_aliases = self._extract_aliases_from_notes(current_notes)
 
         # If raw_name is different from the canonical name and is not already in aliases
-        if raw_name != destination_account and raw_name not in current_aliases:
+        if raw_name != account_name and raw_name not in current_aliases:
             # Add the new alias
             current_aliases.append(raw_name)
             new_notes = self._build_notes_with_aliases(current_aliases)
 
             # Update your account
             payload = {
-                "name": destination_account,
+                "name": account_name,
                 "type": account_type,
                 "notes": new_notes,
+                "account_role": current_role,
             }
             self._put(f"accounts/{account_id}", payload)
 
             # Update local caches
-            self.alias_map[raw_name] = destination_account
-            self.account_aliases[destination_account] = current_aliases
+            self.alias_map[raw_name] = account_name
+            self.account_aliases[account_name] = current_aliases
 
     def _create_account_with_alias(
-        self, destination_account: str, account_type: str, raw_name: str
+        self, account_name: str, account_type: str, raw_name: str
     ) -> str:
         """
         Create a new account with alias mapping.
@@ -225,10 +235,10 @@ class FireflyClient:
             New account ID
         """
         # If raw_name is different from canonical, add to aliases
-        aliases = [raw_name] if raw_name != destination_account else []
+        aliases = [raw_name] if raw_name != account_name else []
 
         payload = {
-            "name": destination_account,
+            "name": account_name,
             "type": account_type,
             "notes": self._build_notes_with_aliases(aliases) if aliases else "",
         }
@@ -238,8 +248,8 @@ class FireflyClient:
 
         # Update local caches
         if aliases:
-            self.alias_map[raw_name] = destination_account
-            self.account_aliases[destination_account] = aliases
+            self.alias_map[raw_name] = account_name
+            self.account_aliases[account_name] = aliases
 
         return account_id
 

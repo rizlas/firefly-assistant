@@ -63,7 +63,7 @@ class Transaction:
 
     def to_firefly_payload(self):
         return {
-            "type": self.type,
+            "type": self.type.value,
             "date": self._format_date(self.date),
             "amount": self.total,
             "description": self.description,
