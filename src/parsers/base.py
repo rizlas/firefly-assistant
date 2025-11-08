@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from typing import Union
 
 from src.firefly.models import Transaction
+from src.firefly.client import FireflyClient
 
 from .types import (
     PrepaidCardBehavior,
@@ -25,9 +26,8 @@ class BaseParser(ABC):
             firefly_client: Firefly API client
             card_type: CardType enum that defines the behavior
         """
-        self.firefly_client = firefly_client
+        self.firefly_client: FireflyClient = firefly_client
         self.asset_account = asset_account
-        self.alias_map = firefly_client.build_alias_mapping()
         self.behavior = card_behavior
 
     @abstractmethod
@@ -43,18 +43,6 @@ class BaseParser(ABC):
         """
         pass
 
-    def map_destination(self, raw_name: str) -> str:
-        """
-        Map raw merchant name to canonical name using alias map.
-
-        Args:
-            raw_name: Raw merchant name from statement
-
-        Returns:
-            Canonical merchant name
-        """
-        return self.firefly_client.map_destination(raw_name)
-
     def export_to_json(self, transactions, output_path):
         """Export transactions to JSON file.
 
@@ -67,14 +55,14 @@ class BaseParser(ABC):
             json.dump(data, f, indent=4)
 
     def classify_transaction(
-        self, amount: float, raw_dest_account: str
+        self, amount: float, raw_account: str
     ) -> tuple[str, float]:
         """
         Classify transaction based on amount sign and card type.
 
         Args:
             amount: Raw amount from Excel (with sign)
-            raw_dest_account: Raw merchant name
+            raw_account: Raw merchant name or raw transfer account name
 
         Returns:
             Tuple of (transaction_type, final_amount)
@@ -90,7 +78,7 @@ class BaseParser(ABC):
         else:
             # Prepaid card: check keywords FIRST (before sign)
             # This handles cases where recharges appear as negative
-            contains, direction = self._check_transfer_specs(raw_dest_account)
+            contains, direction = self._check_transfer_specs(raw_account)
             if contains:
                 return TransactionType.TRANSFER, direction, final_amount
 
@@ -108,12 +96,12 @@ class BaseParser(ABC):
 
                 return positive_amounts_type, TransferType.IN, final_amount
 
-    def _check_transfer_specs(self, raw_dest_account: str) -> bool:
+    def _check_transfer_specs(self, raw_account: str) -> bool:
         """
         Check if merchant name contains any transfer keyword.
 
         Args:
-            raw_dest_account: Raw merchant name
+            raw_account: Raw merchant name or raw transfer account name
 
         Returns:
             True and direction if any keyword matches
@@ -121,10 +109,8 @@ class BaseParser(ABC):
         if not self.behavior.transfer_specs:
             return False, None
 
-        raw_lower = raw_dest_account.lower()
-
         for spec in self.behavior.transfer_specs:
-            if spec["keyword"].lower() in raw_lower:
+            if spec["keyword"].lower() in raw_account.lower():
                 return True, spec["direction"]
 
         return False, None

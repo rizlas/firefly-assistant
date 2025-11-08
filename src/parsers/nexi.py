@@ -26,19 +26,22 @@ class NexiParser(BaseParser):
         transactions = []
         for row in ws.iter_rows(min_row=11):
             date = row[2].value  # Column C
-            raw_dest_account = row[5].value  # Column F
+            raw_account = row[5].value  # Column F
             state = row[6].value  # Column G
             total = row[9].value  # Column J
 
-            # Determine the transaction type, normalize the amount, and map the
-            # destination. account
+            # Determine the transaction type, normalize the amount, and map the account
             tx_type, transfer_type, total = self.classify_transaction(
-                total, raw_dest_account
+                total, raw_account
             )
-            dest_mapped = self.map_destination(raw_dest_account)
 
             asset_account = self.asset_account
-            destination_account = dest_mapped
+            mapped_account = self.firefly_client.map_account(
+                self.firefly_client.ACCOUNT_TYPE_MAP[tx_type], raw_account
+            )
+
+            # Use mapped account if found, otherwise fallback to raw account name
+            destination_account = mapped_account or raw_account
 
             # For refund and transfer, source and destination must be swapped
             if tx_type in [
@@ -50,19 +53,20 @@ class NexiParser(BaseParser):
                     tx_type is TransactionType.REFUND
                     or transfer_type == TransferType.IN
                 ):
-                    asset_account = dest_mapped
+                    asset_account = destination_account
                     destination_account = self.asset_account
 
             tx = Transaction(
                 date=date,
                 description="",
+                source_account=asset_account,
                 dest_account=destination_account,
-                raw_dest_account=raw_dest_account,
+                account_mapping=raw_account,
                 total=total,
                 type=tx_type.value,
+                transfer_type=transfer_type.value if transfer_type else None,
                 state=state,
                 card=card_info,
-                asset_account=asset_account,
             )
 
             if skip_already_imported:

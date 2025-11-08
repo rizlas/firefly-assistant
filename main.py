@@ -239,7 +239,7 @@ def main():
         #         # TODO: Implement auto-import
 
     elif action == "create":
-        output_path = choose_file(".json", "Select JSON file", "outputs")
+        output_path = choose_file(".json", "Select JSON file", config.paths.outputs)
         if not os.path.exists(output_path):
             print(f"File {output_path} not found.")
             return
