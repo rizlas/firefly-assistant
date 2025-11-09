@@ -168,7 +168,7 @@ class FireflyClient:
                 break
 
         if existing_account:
-            if not enable_mapping:
+            if enable_mapping:
                 # Account exists: update mapping if necessary
                 self._update_account_aliases(
                     existing_account,

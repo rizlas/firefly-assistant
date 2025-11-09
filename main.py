@@ -1,16 +1,24 @@
 import json
 import os
+from datetime import datetime
 from pathlib import Path
 
+from rich import box
 from rich.console import Console
 from rich.panel import Panel
-from rich.prompt import Confirm, Prompt
+from rich.prompt import Confirm, FloatPrompt, Prompt
+from rich.table import Table
 
 from config.settings import Config
 from src.firefly.client import FireflyClient
 from src.firefly.models import Transaction
 from src.parsers.nexi import NexiParser
-from src.parsers.types import PrepaidCardBehavior, StandardCardBehavior
+from src.parsers.types import (
+    PrepaidCardBehavior,
+    StandardCardBehavior,
+    TransactionType,
+    TransferType,
+)
 
 console = Console()
 
@@ -273,6 +281,225 @@ def create_transactions(config: Config, firefly: FireflyClient) -> None:
             )
 
 
+def complete_recurring_transaction(rec_tx):
+    def ask_required(prompt_text):
+        while True:
+            value = Prompt.ask(prompt_text)
+            if value.strip() == "":
+                console.print(f"[red]{prompt_text} is required[/red]")
+                continue
+            return value
+
+    # Date
+    default_date = datetime.now().strftime("%d/%m/%Y")
+    while True:
+        rec_tx.date = Prompt.ask("Transaction date", default=default_date)
+        try:
+            datetime.strptime(rec_tx.date, "%d/%m/%Y")
+            break
+        except ValueError:
+            console.print("[red]Invalid date format. Please use dd/mm/yyyy.[/red]")
+
+    # Source account
+    if rec_tx.source_account:
+        console.print(f"Source account: [green]{rec_tx.source_account}[/green]")
+    else:
+        rec_tx.source_account = ask_required("Source account")
+
+        # Destination account
+    if rec_tx.destination_account:
+        console.print(
+            "Destination account: " f"[green]{rec_tx.destination_account}[/green]"
+        )
+    else:
+        rec_tx.destination_account = ask_required("Destination account")
+
+    # Amount (required, cannot be empty)
+    if rec_tx.amount:
+        console.print(f"Amount: [green]€{rec_tx.amount:.2f}[/green]")
+    else:
+        while True:
+            try:
+                amount = FloatPrompt.ask("Amount (€)", default=None)
+                if amount is None or amount <= 0:
+                    console.print("[red]Amount is required and must be > 0[/red]")
+                    continue
+                rec_tx.amount = amount
+                break
+            except Exception:
+                console.print("[red]Invalid amount[/red]")
+
+    # Category (optional)
+    if rec_tx.category:
+        console.print(f"Category: [green]{rec_tx.category}[/green]")
+    else:
+        rec_tx.category = Prompt.ask("Category (optional)", default="")
+
+    # Tags (optional)
+    if rec_tx.tags:
+        console.print(f"Tags: [green]{', '.join(rec_tx.tags)}[/green]")
+    else:
+        tags_input = Prompt.ask("Tags (comma-separated, optional)", default="")
+        rec_tx.tags = [tag.strip() for tag in tags_input.split(",")]
+
+
+def _display_summary(transactions: list):
+    """
+    Display beautiful summary table of transactions to be created.
+
+    Args:
+        transactions: List of Transaction objects
+    """
+    console.print("\n")
+
+    table = Table(
+        title="[bold cyan]Transaction Summary[/bold cyan]",
+        box=box.ROUNDED,
+        show_header=True,
+        header_style="bold magenta",
+    )
+
+    table.add_column("Date", style="cyan", no_wrap=True)
+    table.add_column("Description", style="white")
+    table.add_column("From", style="yellow")
+    table.add_column("To", style="green")
+    table.add_column("Type", style="blue")
+    table.add_column("Amount", justify="right", style="bold green")
+    table.add_column("Category", style="blue")
+    table.add_column("Tags", style="blue")
+
+    total = 0
+    for tx in transactions:
+        table.add_row(
+            tx.date,
+            tx.description,
+            tx.source_account,
+            tx.destination_account,
+            tx.type.value,
+            f"€{tx.amount:,.2f}",
+            tx.category,
+            ", ".join(tx.tags),
+        )
+        total += tx.amount
+
+    table.add_section()
+    table.add_row("", "", "", "[bold]Total[/bold]", f"[bold]€{total:,.2f}[/bold]", "")
+
+    console.print(table)
+
+
+def create_recurrence_transactions(config: Config, firefly: FireflyClient) -> None:
+    """
+    Create transactions from recurrence configurations.
+
+    For each recurrence, prompts user for missing fields and creates transaction.
+
+    Args:
+        config: Configuration with recurrences list
+        firefly: Firefly API client
+    """
+
+    if not config.recurrences:
+        console.print(
+            "[yellow]No recurrence configurations found in config.yaml[/yellow]"
+        )
+        return
+
+    console.print(
+        Panel.fit(
+            f"[bold cyan]Found {len(config.recurrences)} recurrence(s)[/bold cyan]",
+            border_style="cyan",
+        )
+    )
+
+    recurring_transactions = []
+
+    # Display menu
+    console.print("\n[cyan]Available recurrences:[/cyan]")
+    for i, rec_tx in enumerate(config.recurrences, start=1):
+        console.print(f"  {i}. {rec_tx.description}")
+    console.print(f"  {len(config.recurrences)+1}. All")
+
+    # Build choices
+    choices = [str(i) for i in range(1, len(config.recurrences) + 2)]
+    all_index = len(config.recurrences) + 1
+
+    # Prompt user
+    while True:
+        selected = Prompt.ask(
+            "Select recurrence(s) to create (comma-separated numbers)", default="1"
+        )
+
+        try:
+            # Parse comma-separated numbers
+            selected_indices = [int(s.strip()) for s in selected.split(",")]
+
+            # Validate numbers
+            if any(idx < 1 or idx > all_index for idx in selected_indices):
+                raise ValueError
+
+            break
+        except ValueError:
+            console.print(
+                "[red]Invalid selection. Enter numbers from the list, separated by commas.[/red]"
+            )
+
+    # Determine which transactions to process
+    if all_index in selected_indices:  # "All" is the last option
+        to_process = config.recurrences
+    else:
+        # Adjust to 0-based indices
+        to_process = [config.recurrences[idx - 1] for idx in selected_indices]
+
+    console.print(
+        f"\n[green]✓[/green] Selected {len(to_process)} recurrence(s) to create."
+    )
+
+    # Complete selected transactions
+    for rec_tx in to_process:
+        complete_recurring_transaction(rec_tx)
+        recurring_transactions.append(rec_tx)
+        console.print("--" * 20)
+
+    if recurring_transactions:
+        _display_summary(recurring_transactions)
+
+        # Confirm creation
+        if Confirm.ask(
+            "\n[bold]Create these transactions in Firefly?[/bold]", default=False
+        ):
+            for rec_tx in recurring_transactions:
+                tx = Transaction(
+                    date=rec_tx.date,
+                    description=rec_tx.description,
+                    source_account=rec_tx.source_account,
+                    dest_account=rec_tx.destination_account,
+                    account_mapping="",
+                    total=rec_tx.amount,
+                    enable_mapping=False,
+                    type=rec_tx.type,
+                    category=rec_tx.category,
+                    tags=rec_tx.tags,
+                )
+
+            if not tx.category_name:
+                console.print(f"[yellow]Transaction {tx.id} has no category.[/yellow]")
+
+            res = firefly.create_transaction(tx)
+
+            if res:
+                console.print(
+                    "[green]✓[/green] Recurrence transaction "
+                    f"{tx.description} created."
+                )
+            else:
+                console.print(
+                    f"[red]Failed to create transaction {tx.description}[/red]"
+                )
+        else:
+            console.print("[yellow]Cancelled[/yellow]")
+
+
 def main():
     """Main application entry point."""
     console.print(
@@ -289,19 +516,20 @@ def main():
 
     # Main menu
     console.print("\n[cyan]Actions:[/cyan]\n")
-    console.print("  [red][P][/red]arse   - Parse bank statement")
-    console.print("  [red][C][/red]reate  - Create transactions")
+    console.print("  [red][P][/red]arse         - Parse bank statement")
+    console.print("  [red][C][/red]reate        - Create transactions")
+    console.print("  [red][R][/red]ecurrence    - Create recurrences transaction")
 
     action = Prompt.ask(
         "\nChoose action",
-        choices=["parse", "p", "create", "c"],
+        choices=["parse", "p", "create", "c", "recurrence", "r"],
         default="parse",
         show_choices=False,
         case_sensitive=False,
     )
 
     # Map short forms to full names
-    action_map = {"p": "parse", "c": "create"}
+    action_map = {"p": "parse", "c": "create", "r": "recurrence"}
     action = action_map.get(action, action)
 
     # Initialize Firefly client
@@ -316,6 +544,8 @@ def main():
         parse_transactions(config, firefly)
     elif action == "create":
         create_transactions(config, firefly)
+    elif action == "recurrence":
+        create_recurrence_transactions(config, firefly)
 
 
 if __name__ == "__main__":

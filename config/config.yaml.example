@@ -35,6 +35,17 @@ card_mappings:
       - keyword: Recharge to another prepaid bank
         direction: out
 
+# List of recurring transactions to import.
+# Description is mandatory. Any other missed field will be asked interactively
+recurring_transactions:
+  - description: Lorem
+    source_account: Bar
+    destination_account: Bar
+    category: Groceries
+    date: 01/12/2022
+    amount: 10
+    tags: []
+
 # Auto-categorization (future development)
 auto_categories:
   enabled: false

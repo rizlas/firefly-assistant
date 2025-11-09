@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Dict, Any, List, Union
-from src.parsers.types import StandardCardBehavior, PrepaidCardBehavior
+from src.parsers.types import StandardCardBehavior, PrepaidCardBehavior, TransactionType
 
 import yaml
 
@@ -81,6 +81,23 @@ class CardMapping:
             )
 
 
+@dataclass
+class RecurrenceTransactionConfig:
+    """Recurrence transactions configuration."""
+
+    description: str
+    type: TransactionType
+    source_account: str
+    destination_account: str
+    category: str
+    amount: float
+    tags: List[str] = None
+
+    def __post_init__(self):
+        if self.tags is None:
+            self.tags = []
+
+
 class Config:
     """Main configuration class."""
 
@@ -102,6 +119,7 @@ class Config:
         self.paths = self._load_paths()
         self.parser = self._load_parser()
         self.card_mappings = self._load_card_mappings()
+        self.recurrences = self._load_recurrences()
         self.auto_categories = self._load_auto_categories()
 
         self._ensure_directories()
@@ -157,6 +175,22 @@ class Config:
                 transfer_specs=m.get("transfer_specs", []),
             )
             for m in mappings
+        ]
+
+    def _load_recurrences(self) -> List[RecurrenceTransactionConfig]:
+        """Load recurrence transactions configuration."""
+        recurrences = self._raw_config.get("recurring_transactions", [])
+        return [
+            RecurrenceTransactionConfig(
+                description=r["description"],
+                type=TransactionType(r["type"]),
+                source_account=r.get("source_account"),
+                destination_account=r.get("destination_account"),
+                category=r.get("category"),
+                amount=r.get("amount"),
+                tags=r.get("tags"),
+            )
+            for r in recurrences
         ]
 
     def _load_auto_categories(self) -> Dict[str, Any]:
