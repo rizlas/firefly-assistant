@@ -1,7 +1,6 @@
 .vscode
 constants.py
 config/config.yaml
-config/config.yaml.example
 
 # Python-generated files
 __pycache__/

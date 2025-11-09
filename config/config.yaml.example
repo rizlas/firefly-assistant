@@ -1,0 +1,50 @@
+# ============================================
+# Firefly III Parser Configuration Template
+# ============================================
+# Copy this file to config.yaml and customize
+
+# Firefly III Configuration
+firefly:
+  url: http://localhost:8080
+  token: CHANGE_ME_your_personal_access_token_here
+  timeout: 30
+  max_retries: 3
+
+# Directory paths
+paths:
+  inputs: data/inputs
+  outputs: data/outputs
+
+# Parser configuration
+parser:
+  # Skip transactions already imported (based on external_id)
+  skip_already_imported: true
+
+# Mapping of Asset Account to Card Type
+# Allows automatic association of card type based on the account
+card_mappings:
+  - asset_account: My Credit Card
+    card_type: STANDARD
+
+  - asset_account: Prepaid
+    card_type: PREPAID
+    description: Prepaid card
+    positive_is_transfer: false # Fallback: refund if no keyword
+    transfer_specs:
+      - keyword: Recharge from my bank
+      - keyword: Recharge to another prepaid bank
+        direction: out
+
+# Auto-categorization (future development)
+auto_categories:
+  enabled: false
+  rules:
+    - category: Groceries
+      keywords:
+        - carrefour
+        - lidl
+
+    - category: Transport
+      keywords:
+        - uber
+        - bolt
