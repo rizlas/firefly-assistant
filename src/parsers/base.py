@@ -50,7 +50,7 @@ class BaseParser(ABC):
             transactions: List of Transaction objects
             output_path: Path where to save JSON file
         """
-        data = [t.__dict__ for t in transactions]
+        data = [t.to_json() for t in transactions]
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=4)
 
