@@ -100,15 +100,6 @@ class CardMapping:
         #     )
 
 
-@dataclass
-class LoggingConfig:
-    """Configurazione logging."""
-
-    level: str = "INFO"
-    file: str = "logs/parser.log"
-    retention_days: int = 30
-
-
 class Config:
     """Main configuration class."""
 
@@ -131,7 +122,6 @@ class Config:
         self.parser = self._load_parser()
         self.card_mappings = self._load_card_mappings()
         self.auto_categories = self._load_auto_categories()
-        self.logging = self._load_logging()
 
         self._ensure_directories()
 
@@ -192,22 +182,10 @@ class Config:
         """Carica regole di auto-categorizzazione."""
         return self._raw_config.get("auto_categories", {})
 
-    def _load_logging(self) -> LoggingConfig:
-        """Load logging configuration."""
-        logging = self._raw_config.get("logging", {})
-        return LoggingConfig(
-            level=logging.get("level", "INFO"),
-            file=logging.get("file", "logs/parser.log"),
-            retention_days=logging.get("retention_days", 30),
-        )
-
     def _ensure_directories(self):
         """Create necessary directories."""
         self.paths.inputs.mkdir(parents=True, exist_ok=True)
         self.paths.outputs.mkdir(parents=True, exist_ok=True)
-
-        log_dir = Path(self.logging.file).parent
-        log_dir.mkdir(parents=True, exist_ok=True)
 
     def get_card_mapping(self, asset_account: str) -> Optional[CardMapping]:
         """
