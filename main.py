@@ -93,14 +93,16 @@ def choose_card(asset_account: str, config: Config):
         behavior = card_mapping.to_behavior()
 
         console.print(
-            f"\n[green]✓[/green] Auto-detected from config: [bold]{behavior.name}[/bold]"
+            "\n[green]✓[/green] Auto-detected from config: "
+            f"[bold]{behavior.name}[/bold]"
         )
         console.print(f"  [dim]{behavior.description}[/dim]")
 
         # Show prepaid-specific info
         if isinstance(behavior, PrepaidCardBehavior):
             console.print(
-                f"  [dim]Fallback: {'transfer' if behavior.positive_is_transfer else 'refund'}[/dim]"
+                f"  [dim]Fallback: "
+                f"{'transfer' if behavior.positive_is_transfer else 'refund'}[/dim]"
             )
             if behavior.transfer_specs:
                 keywords_preview = ", ".join(
@@ -139,7 +141,8 @@ def load_config() -> Config | None:
     except FileNotFoundError as e:
         console.print(f"[red]Error:[/red] {e}")
         console.print(
-            "[yellow]Hint:[/yellow] Copy config/config.example.yaml to config/config.yaml"
+            "[yellow]Hint:[/yellow] Copy config/config.example.yaml "
+            "to config/config.yaml"
         )
         return None
 
@@ -249,7 +252,8 @@ def create_transactions(config: Config, firefly: FireflyClient) -> None:
     for tx_dict in transactions:
         if not tx_dict["description"]:
             console.print(
-                f"[yellow]Transaction {tx_dict['id']} has no description. Skipping...[/yellow]"
+                f"[yellow]Transaction {tx_dict['id']} has no description. "
+                "Skipping...[/yellow]"
             )
             continue
 
@@ -264,7 +268,8 @@ def create_transactions(config: Config, firefly: FireflyClient) -> None:
             console.print(f"[green]✓[/green] Transaction {tx.id} created.")
         else:
             console.print(
-                f"[yellow]Transaction {tx.id} already exists in Firefly. Skipping...[/yellow]"
+                f"[yellow]Transaction {tx.id} already exists in Firefly. "
+                "Skipping...[/yellow]"
             )
 
 

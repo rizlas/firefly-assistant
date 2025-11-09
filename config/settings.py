@@ -80,25 +80,6 @@ class CardMapping:
                 f"Unknown card_type: {self.card_type}. Must be STANDARD or PREPAID"
             )
 
-        # # If using custom configuration
-        # elif self.custom_config:
-        #     return CardBehavior(
-        #         name=f"Custom: {self.asset_account}",
-        #         description=self.description,
-        #         all_positive=self.custom_config.get("all_positive", True),
-        #         positive_is_transfer=self.custom_config.get(
-        #             "positive_is_transfer", False
-        #         ),
-        #         transfer_specs=self.custom_config.get(
-        #             "transfer_specs", default_keywords
-        #         ),
-        #     )
-
-        # else:
-        #     raise ValueError(
-        #         f"Card mapping for '{self.asset_account}' must have either 'card_type' or 'card' configuration"
-        #     )
-
 
 class Config:
     """Main configuration class."""
