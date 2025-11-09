@@ -167,14 +167,15 @@ class FireflyClient:
                 existing_account = acc
                 break
 
-        if existing_account and enable_mapping:
-            # Account exists: update mapping if necessary
-            self._update_account_aliases(
-                existing_account,
-                account_type,
-                account_mapping,
-                account_name,
-            )
+        if existing_account:
+            if not enable_mapping:
+                # Account exists: update mapping if necessary
+                self._update_account_aliases(
+                    existing_account,
+                    account_type,
+                    account_mapping,
+                    account_name,
+                )
             return existing_account["id"], False
         else:
             # Account does not exist: create it with mapping
@@ -293,6 +294,7 @@ class FireflyClient:
         Maps a raw name to the canonical account name.
 
         Args:
+            type: Account type
             raw_name: Raw name from the statement (e.g., "Cl4ud3**2452*")
 
         Returns:
