@@ -13,12 +13,7 @@ from config.settings import Config
 from src.firefly.client import FireflyClient
 from src.firefly.models import Transaction
 from src.parsers.nexi import NexiParser
-from src.parsers.types import (
-    PrepaidCardBehavior,
-    StandardCardBehavior,
-    TransactionType,
-    TransferType,
-)
+from src.parsers.types import PrepaidCardBehavior, StandardCardBehavior
 
 console = Console()
 
@@ -420,10 +415,6 @@ def create_recurrence_transactions(config: Config, firefly: FireflyClient) -> No
         console.print(f"  {i}. {rec_tx.description}")
     console.print(f"  {len(config.recurrences)+1}. All")
 
-    # Build choices
-    choices = [str(i) for i in range(1, len(config.recurrences) + 2)]
-    all_index = len(config.recurrences) + 1
-
     # Prompt user
     while True:
         selected = Prompt.ask(
@@ -435,13 +426,15 @@ def create_recurrence_transactions(config: Config, firefly: FireflyClient) -> No
             selected_indices = [int(s.strip()) for s in selected.split(",")]
 
             # Validate numbers
+            all_index = len(config.recurrences) + 1
             if any(idx < 1 or idx > all_index for idx in selected_indices):
                 raise ValueError
 
             break
         except ValueError:
             console.print(
-                "[red]Invalid selection. Enter numbers from the list, separated by commas.[/red]"
+                "[red]Invalid selection. Enter numbers from the list, "
+                "separated by commas.[/red]"
             )
 
     # Determine which transactions to process
