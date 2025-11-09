@@ -37,7 +37,7 @@ class NexiParser(BaseParser):
 
             asset_account = self.asset_account
             mapped_account = self.firefly_client.map_account(
-                self.firefly_client.ACCOUNT_TYPE_MAP[tx_type], raw_account
+                self.firefly_client.ASSET_ACCOUNT_TYPE_MAP[tx_type], raw_account
             )
 
             # Use mapped account if found, otherwise fallback to raw account name
