@@ -173,7 +173,9 @@ def init_firefly_client(config: Config) -> FireflyClient | None:
     with console.status("[bold green]Connecting to Firefly III..."):
         try:
             return FireflyClient(
-                base_url=config.firefly.url, token=config.firefly.token
+                base_url=config.firefly.url,
+                token=config.firefly.token,
+                auto_categories=config.auto_categories,
             )
         except Exception as e:
             console.print(f"[red]Error connecting to Firefly:[/red] {e}")

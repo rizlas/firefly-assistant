@@ -16,7 +16,7 @@ class FireflyClient:
         TransactionType.TRANSFER: "asset",
     }
 
-    def __init__(self, base_url, token):
+    def __init__(self, base_url, token, auto_categories=None):
         self.base_url = base_url
         self.headers = {
             "Authorization": f"Bearer {token}",
@@ -26,6 +26,7 @@ class FireflyClient:
         self.alias_map: Dict[str, str] = {}
         # Reverse cache: account name -> alias list
         self.account_aliases: Dict[str, List[str]] = {}
+        self.auto_categories = auto_categories
         self.build_alias_mapping()
 
     def _get(self, endpoint, **params):

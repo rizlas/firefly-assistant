@@ -194,8 +194,12 @@ class Config:
         ]
 
     def _load_auto_categories(self) -> Dict[str, Any]:
-        """Carica regole di auto-categorizzazione."""
-        return self._raw_config.get("auto_categories", {})
+        """Load auto categories configuration."""
+        auto_categories = self._raw_config.get("auto_categories", {})
+        return {
+            "enabled": auto_categories.get("enabled", False),
+            "rules": auto_categories.get("rules", []),
+        }
 
     def _ensure_directories(self):
         """Create necessary directories."""

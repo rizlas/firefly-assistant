@@ -42,6 +42,7 @@ class NexiParser(BaseParser):
 
             # Use mapped account if found, otherwise fallback to raw account name
             destination_account = mapped_account or raw_account
+            category = self.auto_categorize(destination_account)
 
             # For refund and transfer, source and destination must be swapped
             if tx_type in [
@@ -67,6 +68,7 @@ class NexiParser(BaseParser):
                 transfer_type=transfer_type.value if transfer_type else None,
                 state=state,
                 card=card_info,
+                category=category,
             )
 
             if skip_already_imported:

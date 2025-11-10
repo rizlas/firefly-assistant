@@ -46,7 +46,8 @@ recurring_transactions:
     amount: 10
     tags: []
 
-# Auto-categorization (future development)
+# Auto-categorization (case insensitive)
+# Keywords are the merchant names
 auto_categories:
   enabled: false
   rules:

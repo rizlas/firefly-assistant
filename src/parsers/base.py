@@ -114,3 +114,35 @@ class BaseParser(ABC):
                 return True, spec["direction"]
 
         return False, None
+
+    def auto_categorize(self, merchant_name: str):
+        """
+        Auto-categorize transaction based on merchant name.
+
+        Checks both canonical and raw names against category rules from config.
+
+        Args:
+            merchant_name: Merchant name
+
+        Returns:
+            Category name or None if no match
+        """
+
+        auto_cat_config = getattr(self.firefly_client, "auto_categories", {})
+
+        if not auto_cat_config.get("enabled", False):
+            return None
+
+        rules = auto_cat_config.get("rules", [])
+        if not rules:
+            return None
+
+        for rule in rules:
+            category = rule.get("category")
+            keywords = rule.get("keywords", [])
+
+            for keyword in keywords:
+                if keyword.lower() in merchant_name.lower():
+                    return category
+
+        return None
