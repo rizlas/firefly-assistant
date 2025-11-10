@@ -119,8 +119,6 @@ class BaseParser(ABC):
         """
         Auto-categorize transaction based on merchant name.
 
-        Checks both canonical and raw names against category rules from config.
-
         Args:
             merchant_name: Merchant name
 
