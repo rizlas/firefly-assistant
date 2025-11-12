@@ -1,5 +1,6 @@
 import json
 import os
+import uuid
 from datetime import datetime
 from pathlib import Path
 
@@ -465,6 +466,7 @@ def create_recurrence_transactions(config: Config, firefly: FireflyClient) -> No
         ):
             for rec_tx in recurring_transactions:
                 tx = Transaction(
+                    id=uuid.uuid4().hex,
                     date=rec_tx.date,
                     description=rec_tx.description,
                     source_account=rec_tx.source_account,
