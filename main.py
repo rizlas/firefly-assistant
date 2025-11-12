@@ -511,38 +511,43 @@ def main():
     if not config:
         return
 
-    # Main menu
-    console.print("\n[cyan]Actions:[/cyan]\n")
-    console.print("  [red][P][/red]arse         - Parse bank statement")
-    console.print("  [red][C][/red]reate        - Create transactions")
-    console.print("  [red][R][/red]ecurrence    - Create recurrences transaction")
-
-    action = Prompt.ask(
-        "\nChoose action",
-        choices=["parse", "p", "create", "c", "recurrence", "r"],
-        default="parse",
-        show_choices=False,
-        case_sensitive=False,
-    )
-
-    # Map short forms to full names
-    action_map = {"p": "parse", "c": "create", "r": "recurrence"}
-    action = action_map.get(action, action)
-
     # Initialize Firefly client
     firefly = init_firefly_client(config)
     if not firefly:
         return
 
-    console.print(f"\n[green]✓[/green] Selected: [bold]{action}[/bold]")
+    while True:
+        # Main menu
+        console.print("\n[cyan]Actions:[/cyan]\n")
+        console.print("  [red][P][/red]arse         - Parse bank statement")
+        console.print("  [red][C][/red]reate        - Create transactions")
+        console.print("  [red][R][/red]ecurrence    - Create recurrences transaction")
+        console.print("  [red][E][/red]xit          - Exit application")
 
-    # Route to appropriate action
-    if action == "parse":
-        parse_transactions(config, firefly)
-    elif action == "create":
-        create_transactions(config, firefly)
-    elif action == "recurrence":
-        create_recurrence_transactions(config, firefly)
+        action = Prompt.ask(
+            "\nChoose action",
+            choices=["parse", "p", "create", "c", "recurrence", "r", "exit", "e"],
+            default="parse",
+            show_choices=False,
+            case_sensitive=False,
+        )
+
+        # Map short forms to full names
+        action_map = {"p": "parse", "c": "create", "r": "recurrence", "e": "exit"}
+        action = action_map.get(action, action)
+
+        console.print(f"\n[green]✓[/green] Selected: [bold]{action}[/bold]")
+
+        # Route to appropriate action
+        if action == "parse":
+            parse_transactions(config, firefly)
+        elif action == "create":
+            create_transactions(config, firefly)
+        elif action == "recurrence":
+            create_recurrence_transactions(config, firefly)
+        elif action == "exit":
+            console.print("[yellow]Exiting[/yellow]")
+            break
 
 
 if __name__ == "__main__":
