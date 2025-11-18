@@ -1,3 +1,4 @@
+import copy
 import json
 import os
 import uuid
@@ -442,10 +443,12 @@ def create_recurrence_transactions(config: Config, firefly: FireflyClient) -> No
 
     # Determine which transactions to process
     if all_index in selected_indices:  # "All" is the last option
-        to_process = config.recurrences
+        to_process = copy.deepcopy(config.recurrences)
     else:
         # Adjust to 0-based indices
-        to_process = [config.recurrences[idx - 1] for idx in selected_indices]
+        to_process = [
+            copy.deepcopy(config.recurrences[idx - 1]) for idx in selected_indices
+        ]
 
     console.print(
         f"\n[green]✓[/green] Selected {len(to_process)} recurrence(s) to create."
