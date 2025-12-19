@@ -2,7 +2,8 @@ import copy
 import json
 import os
 import uuid
-from datetime import datetime
+from collections import defaultdict
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from rich import box
@@ -500,6 +501,72 @@ def create_recurrence_transactions(config: Config, firefly: FireflyClient) -> No
             console.print("[yellow]Cancelled[/yellow]")
 
 
+def find_duplicates_per_day(firefly: FireflyClient):
+    """Find duplicate transactions per day.
+
+    Args:
+        firefly: Firefly API client
+    """
+    console.print(
+        Panel.fit(
+            "[bold cyan]Sometimes ID generation can fail, leading to duplicated "
+            "transactions over time. This tool will check for possible duplicates "
+            "per day. If a transaction has the same amount and same source account "
+            "as another transaction on the same day, it will be marked as a duplicate."
+            "[/bold cyan]",
+            border_style="cyan",
+        )
+    )
+
+    start_date = Prompt.ask("Enter the start date (DD/MM/YYYY)")
+    end_date = Prompt.ask(
+        "Enter the end date (DD/MM/YYYY)", default=datetime.now().strftime("%d/%m/%Y")
+    )
+    start_date = datetime.strptime(start_date, "%d/%m/%Y")
+    end_date = datetime.strptime(end_date, "%d/%m/%Y")
+
+    if end_date < start_date:
+        console.print("[red]End date must be greater than start date.[/red]")
+        return
+
+    date_list = []
+    current_date = start_date
+    while current_date <= end_date:
+        date_list.append(current_date.strftime("%Y-%m-%d"))
+        current_date += timedelta(days=1)
+
+    duplicate_transactions = defaultdict(list)
+
+    for date in date_list:
+        transactions = firefly.search_transactions(f"date_on:{date}")
+
+        # Group transactions by (amount, asset_account)
+        grouped_transactions = defaultdict(list)
+        for tx in transactions:
+            tx = tx["attributes"]["transactions"][0]
+            if tx["type"] != "withdrawal":
+                continue
+
+            key = (tx["amount"], tx["source_name"])
+            grouped_transactions[key].append(tx)
+
+        # Identify duplicates
+        for (amount, asset_account), tx_list in grouped_transactions.items():
+            if len(tx_list) > 1:
+                # More than one transaction with the same amount and asset_account means
+                # duplicates
+                duplicate_transactions[date].extend(tx_list)
+
+    for date, tx_list in duplicate_transactions.items():
+        console.print(f"\n[cyan]Date: {date}[/cyan]")
+
+        for tx in tx_list:
+            console.print(
+                f"  - {tx['description']} - [cyan]{float(tx['amount']):.2f}€[/cyan], "
+                f"{tx['source_name']} - {tx['destination_name']}"
+            )
+
+
 def main():
     """Main application entry point."""
     console.print(
@@ -525,18 +592,36 @@ def main():
         console.print("  [red][P][/red]arse         - Parse bank statement")
         console.print("  [red][C][/red]reate        - Create transactions")
         console.print("  [red][R][/red]ecurrence    - Create recurrences transaction")
+        console.print("  [red][D][/red]uplicates    - Check for duplicates per day")
         console.print("  [red][E][/red]xit          - Exit application")
 
         action = Prompt.ask(
             "\nChoose action",
-            choices=["parse", "p", "create", "c", "recurrence", "r", "exit", "e"],
+            choices=[
+                "parse",
+                "p",
+                "create",
+                "c",
+                "recurrence",
+                "r",
+                "duplicates",
+                "d",
+                "exit",
+                "e",
+            ],
             default="parse",
             show_choices=False,
             case_sensitive=False,
         )
 
         # Map short forms to full names
-        action_map = {"p": "parse", "c": "create", "r": "recurrence", "e": "exit"}
+        action_map = {
+            "p": "parse",
+            "c": "create",
+            "r": "recurrence",
+            "d": "duplicates",
+            "e": "exit",
+        }
         action = action_map.get(action, action)
 
         console.print(f"\n[green]✓[/green] Selected: [bold]{action}[/bold]")
@@ -548,6 +633,8 @@ def main():
             create_transactions(config, firefly)
         elif action == "recurrence":
             create_recurrence_transactions(config, firefly)
+        elif action == "duplicates":
+            find_duplicates_per_day(firefly)
         elif action == "exit":
             console.print("[yellow]Exiting[/yellow]")
             break
