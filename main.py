@@ -268,7 +268,10 @@ def create_transactions(config: Config, firefly: FireflyClient) -> None:
         tx = Transaction.from_dict(tx_dict)
 
         if not tx.category_name:
-            console.print(f"[yellow]Transaction {tx.id} has no category.[/yellow]")
+            console.print(
+                f"""[yellow]Transaction {tx.description} with ID {tx.id} """
+                f"""has no category.[/yellow]"""
+            )
 
         res = firefly.create_transaction(tx)
 
