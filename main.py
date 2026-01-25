@@ -260,8 +260,8 @@ def create_transactions(config: Config, firefly: FireflyClient) -> None:
     for tx_dict in transactions:
         if not tx_dict["description"]:
             console.print(
-                f"[yellow]Transaction {tx_dict['id']} has no description. "
-                "Skipping...[/yellow]"
+                f"[yellow]Transaction {tx_dict['description']} with ID {tx_dict['id']} "
+                f"has no description. Skipping...[/yellow]"
             )
             continue
 
@@ -276,11 +276,14 @@ def create_transactions(config: Config, firefly: FireflyClient) -> None:
         res = firefly.create_transaction(tx)
 
         if res:
-            console.print(f"[green]✓[/green] Transaction {tx.id} created.")
+            console.print(
+                f"[green]✓[/green] Transaction {tx.description} with ID "
+                f"{tx.id} created."
+            )
         else:
             console.print(
-                f"[yellow]Transaction {tx.id} already exists in Firefly. "
-                "Skipping...[/yellow]"
+                f"[yellow]Transaction {tx.description} with ID {tx.id} already exists "
+                "in Firefly. Skipping...[/yellow]"
             )
 
 
