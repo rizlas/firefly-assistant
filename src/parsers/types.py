@@ -50,6 +50,8 @@ class StandardCardBehavior:
     description: str = "All amounts positive, all expenses"
     type: CardType = CardType.STANDARD
     all_positive: bool = True
+    completed_states: List[str] = field(default_factory=list)
+    parser: str = None
 
 
 @dataclass
@@ -109,11 +111,13 @@ class PrepaidCardBehavior:
     all_positive: bool = False
     positive_is_transfer: bool = False
     transfer_specs: List[str] = field(default_factory=list)
+    completed_states: List[str] = field(default_factory=list)
+    parser: str = None
 
     def __post_init__(self):
         """Set default values and type for transfer_specs direction."""
         for spec in self.transfer_specs:
             if "direction" not in spec:
                 spec["direction"] = TransferType.IN
-            else:
+            elif not isinstance(spec["direction"], TransferType):
                 spec["direction"] = TransferType(spec["direction"].lower())

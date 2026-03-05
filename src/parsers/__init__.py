@@ -2,6 +2,7 @@
 
 from .base import BaseParser
 from .nexi import NexiParser
+from .revolut import RevolutParser
 from .types import (
     CardType,
     PrepaidCardBehavior,
@@ -13,6 +14,7 @@ from .types import (
 __all__ = [
     "BaseParser",
     "NexiParser",
+    "RevolutParser",
     "TransactionType",
     "TransferType",
     "CardType",

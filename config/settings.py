@@ -53,6 +53,8 @@ class CardMapping:
     asset_account: str
     card_type: str  # "STANDARD" or "PREPAID"
     description: str = ""
+    parser: str = None
+    completed_states: List[str] = None
     # PREPAID only fields
     positive_is_transfer: bool = False
     transfer_specs: List[dict] = None
@@ -60,6 +62,13 @@ class CardMapping:
     def __post_init__(self):
         if self.transfer_specs is None:
             self.transfer_specs = []
+        if self.completed_states is None:
+            self.completed_states = []
+        if self.parser is None:
+            raise ValueError(
+                f"Missing 'parser' field for card mapping '{self.asset_account}'. "
+                f"Please set it in config.yaml (e.g. parser: nexi)"
+            )
 
     def to_behavior(self) -> Union[StandardCardBehavior, PrepaidCardBehavior]:
         """
@@ -69,11 +78,16 @@ class CardMapping:
             StandardCardBehavior or PrepaidCardBehavior
         """
         if self.card_type.upper() == "STANDARD":
-            return StandardCardBehavior()
+            return StandardCardBehavior(
+                parser=self.parser,
+                completed_states=self.completed_states,
+            )
         elif self.card_type.upper() == "PREPAID":
             return PrepaidCardBehavior(
                 positive_is_transfer=self.positive_is_transfer,
                 transfer_specs=self.transfer_specs,
+                parser=self.parser,
+                completed_states=self.completed_states,
             )
         else:
             raise ValueError(
@@ -171,6 +185,8 @@ class Config:
                 asset_account=m["asset_account"],
                 card_type=m["card_type"],
                 description=m.get("description", ""),
+                parser=m["parser"],
+                completed_states=m.get("completed_states", []),
                 positive_is_transfer=m.get("positive_is_transfer", False),
                 transfer_specs=m.get("transfer_specs", []),
             )

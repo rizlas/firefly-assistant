@@ -15,29 +15,42 @@ from rich.table import Table
 from config.settings import Config
 from src.firefly.client import FireflyClient
 from src.firefly.models import Transaction
-from src.parsers.nexi import NexiParser
+from src.parsers import NexiParser, RevolutParser
 from src.parsers.types import PrepaidCardBehavior, StandardCardBehavior
 
 console = Console()
 
+PARSER_MAP = {
+    "nexi": NexiParser,
+    "revolut": RevolutParser,
+}
 
-def choose_file(extension: str, prompt: str, path: Path) -> Path:
+PARSER_EXTENSIONS = {
+    "nexi": [".xlsx"],
+    "revolut": [".csv"],
+}
+
+
+def choose_file(extensions: list[str], prompt: str, path: Path) -> Path:
     """
-    List files in directory with given extension.
+    List files in directory with given extensions.
     Ask user to pick one or enter a custom path.
-
     Args:
-        extension: File extension to filter (e.g., ".xlsx")
+        extensions: File extensions to filter (e.g., [".xlsx", ".csv"])
         prompt: Prompt message for user
         path: Directory path to search in
-
     Returns:
         Path to selected file
     """
-    files = [f for f in os.listdir(path) if f.lower().endswith(extension)]
+    files = [
+        f
+        for f in os.listdir(path)
+        if any(f.lower().endswith(ext) for ext in extensions)
+    ]
+    ext_label = "/".join(e.upper().lstrip(".") for e in extensions)
 
     if files:
-        console.print(f"\n[cyan]Available {extension.upper()} files:[/cyan]")
+        console.print(f"\n[cyan]Available {ext_label} files:[/cyan]")
         for i, f in enumerate(files, start=1):
             console.print(f"  {i}. {f}")
 
@@ -53,7 +66,7 @@ def choose_file(extension: str, prompt: str, path: Path) -> Path:
 
         return path / files[int(choice) - 1]
     else:
-        console.print(f"[yellow]No {extension.upper()} files found in {path}[/yellow]")
+        console.print(f"[yellow]No {ext_label} files found in {path}[/yellow]")
         custom_path = Prompt.ask("Enter full path")
         return Path(custom_path)
 
@@ -192,15 +205,7 @@ def parse_transactions(config: Config, firefly: FireflyClient) -> None:
         config: Configuration object.
         firefly: Firefly III client.
     """
-    # Select file
-    console.print()
-    file_path = choose_file(".xlsx", "Select file", config.paths.inputs)
-
-    if not file_path.exists():
-        console.print(f"[red]File not found:[/red] {file_path}")
-        return
-
-    # Get accounts from Firefly
+    # Get accounts from Firefly first (need card info before choosing file)
     with console.status("[bold green]Fetching accounts..."):
         accounts = firefly.get_accounts("asset")
 
@@ -215,12 +220,27 @@ def parse_transactions(config: Config, firefly: FireflyClient) -> None:
     )
     console.print(f"  [dim]{card.description}[/dim]")
 
+    # Select file — filter by extensions supported by the parser
+    console.print()
+    extensions = PARSER_EXTENSIONS.get(card.parser, [".xlsx", ".csv"])
+    file_path = choose_file(extensions, "Select file", config.paths.inputs)
+
+    if not file_path.exists():
+        console.print(f"[red]File not found:[/red] {file_path}")
+        return
+
+    parser_class = PARSER_MAP.get(card.parser)
+    if parser_class is None:
+        console.print(
+            "[red]Parser not configured for this card. Set 'parser' in config.yaml[/red]"
+        )
+        return
+
     # Parse transactions
     with console.status(f"[bold green]Parsing {file_path.name}..."):
-        parser = NexiParser(
+        parser = parser_class(
             asset_account=asset_account, firefly_client=firefly, card_behavior=card
         )
-
         txs = parser.parse(
             file_path, skip_already_imported=config.parser.skip_already_imported
         )

@@ -35,6 +35,20 @@ card_mappings:
       - keyword: Recharge to another prepaid bank
         direction: out
 
+  - asset_account: Revolut
+    card_type: PREPAID
+    parser: revolut
+    description: Revolut prepaid card
+    positive_is_transfer: false  # Fallback: refund (e.g. Transfer from someone)
+    completed_states:
+      - COMPLETED   # EN
+      - COMPLETATO  # IT
+    transfer_specs:
+      - keyword: Topup     # EN: money from your own bank account
+        direction: in
+      - keyword: Ricarica  # IT: money from your own bank account
+        direction: in
+
 # List of recurring transactions to import.
 # Description is mandatory. Any other missed field will be asked interactively
 recurring_transactions:

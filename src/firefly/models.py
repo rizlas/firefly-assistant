@@ -77,9 +77,13 @@ class Transaction:
         return False
 
     def _format_date(self, date_str):
-        dt = datetime.strptime(date_str, "%d/%m/%Y")
-        tz = timezone("Europe/Rome")
-        return tz.localize(dt).isoformat()
+        for fmt in ("%d/%m/%Y %H:%M:%S", "%d/%m/%Y"):
+            try:
+                dt = datetime.strptime(date_str, fmt)
+                return dt.replace(tzinfo=timezone("UTC")).isoformat()
+            except ValueError:
+                continue
+        raise ValueError(f"Unable to parse date: {date_str}")
 
     def _generate_id(self):
         raw = f"{self.date}|{self.account_mapping.strip().lower()}|{self.total:.2f}"
