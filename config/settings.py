@@ -37,6 +37,30 @@ class ParserConfig:
 
 
 @dataclass
+class CheckMissingColumnsConfig:
+    """Column indices for the check-missing CSV."""
+
+    date: int = 0
+    value_date: int = 1
+    description: int = 3
+    amount: int = 4
+
+
+@dataclass
+class CheckMissingConfig:
+    """Configuration for the check-missing feature."""
+
+    delimiter: str = ";"
+    skip_lines: int = 7
+    date_format: str = "%d/%m/%Y"
+    columns: CheckMissingColumnsConfig = None
+
+    def __post_init__(self):
+        if self.columns is None:
+            self.columns = CheckMissingColumnsConfig()
+
+
+@dataclass
 class CardMapping:
     """
     Card mapping configuration.
@@ -135,6 +159,7 @@ class Config:
         self.card_mappings = self._load_card_mappings()
         self.recurrences = self._load_recurrences()
         self.auto_categories = self._load_auto_categories()
+        self.check_missing = self._load_check_missing()
 
         self._ensure_directories()
 
@@ -208,6 +233,13 @@ class Config:
             )
             for r in recurrences
         ]
+
+    def _load_check_missing(self) -> CheckMissingConfig:
+        cm = self._raw_config.get("check_missing", {})
+        cols_cfg = cm.get("columns", {})
+        columns = CheckMissingColumnsConfig(**cols_cfg) if cols_cfg else CheckMissingColumnsConfig()
+        cm_kwargs = {k: v for k, v in cm.items() if k != "columns"}
+        return CheckMissingConfig(columns=columns, **cm_kwargs)
 
     def _load_auto_categories(self) -> Dict[str, Any]:
         """Load auto categories configuration."""

@@ -60,6 +60,19 @@ recurring_transactions:
     amount: 10
     tags: []
 
+# Check missing transactions
+# Used by the [M]issing menu option to compare a bank CSV against Firefly III.
+# Customize to match your bank's export format.
+check_missing:
+  delimiter: ";"
+  skip_lines: 7        # Lines to skip before the header row
+  date_format: "%d/%m/%Y"
+  columns:
+    date: 0
+    value_date: 1
+    description: 3
+    amount: 4
+
 # Auto-categorization (case insensitive)
 # Keywords are the merchant names
 auto_categories:

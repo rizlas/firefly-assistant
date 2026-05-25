@@ -1,4 +1,5 @@
 import copy
+import csv
 import json
 import os
 import uuid
@@ -527,6 +528,140 @@ def create_recurrence_transactions(config: Config, firefly: FireflyClient) -> No
             console.print("[yellow]Cancelled[/yellow]")
 
 
+def _parse_amount(value: str) -> float | None:
+    if not value or not value.strip():
+        return None
+    cleaned = value.strip().replace("€", "").replace(" ", "")
+    if "," in cleaned and "." in cleaned:
+        if cleaned.index(",") > cleaned.index("."):
+            cleaned = cleaned.replace(",", "")
+        else:
+            cleaned = cleaned.replace(".", "").replace(",", ".")
+    elif "," in cleaned:
+        cleaned = cleaned.replace(",", ".")
+    try:
+        result = float(cleaned)
+        return abs(result) if result != 0 else None
+    except ValueError:
+        return None
+
+
+def _parse_csv_for_check(file_path: Path, cm) -> list[dict]:
+    cols = cm.columns
+    rows = []
+    with open(file_path, newline="", encoding="utf-8-sig") as f:
+        for _ in range(cm.skip_lines):
+            next(f, None)
+        reader = csv.reader(f, delimiter=cm.delimiter)
+        next(reader, None)  # skip header
+        for row in reader:
+            if len(row) <= cols.amount:
+                continue
+            date_str = row[cols.date].strip()
+            amount_str = row[cols.amount].strip()
+            if not date_str or not amount_str:
+                continue
+            amount = _parse_amount(amount_str)
+            if amount is None:
+                continue
+            try:
+                date = datetime.strptime(date_str, cm.date_format)
+            except ValueError:
+                continue
+            value_date = None
+            if len(row) > cols.value_date:
+                vd_str = row[cols.value_date].strip()
+                if vd_str:
+                    try:
+                        value_date = datetime.strptime(vd_str, cm.date_format)
+                    except ValueError:
+                        pass
+            description = row[cols.description].strip() if len(row) > cols.description else ""
+            rows.append(
+                {
+                    "date": date,
+                    "date_str": date_str,
+                    "value_date": value_date,
+                    "amount": amount,
+                    "description": description,
+                }
+            )
+    return rows
+
+
+def _search_by_date(firefly: FireflyClient, date: datetime, amount: float, account: str | None) -> bool:
+    results = firefly.search_transactions(f"date_on:{date.strftime('%Y-%m-%d')}")
+    for item in results:
+        for tx in item.get("attributes", {}).get("transactions", []):
+            if tx.get("type") != "withdrawal":
+                continue
+            if account and tx.get("source_name") != account:
+                continue
+            if round(float(tx.get("amount", 0)), 2) == round(amount, 2):
+                return True
+    return False
+
+
+def _find_in_firefly(
+    firefly: FireflyClient, date: datetime, value_date: datetime | None, amount: float, account: str | None
+) -> bool:
+    if _search_by_date(firefly, date, amount, account):
+        return True
+    if value_date and value_date != date:
+        return _search_by_date(firefly, value_date, amount, account)
+    return False
+
+
+def check_missing_transactions(config: Config, firefly: FireflyClient) -> None:
+    csv_path = choose_file([".csv"], "Select CSV file", config.paths.inputs)
+
+    if not csv_path.exists():
+        console.print(f"[red]File not found:[/red] {csv_path}")
+        return
+
+    with console.status("[bold green]Fetching accounts..."):
+        accounts = firefly.get_accounts("asset")
+
+    console.print("\n[cyan]Filter by account (optional):[/cyan]")
+    console.print("  0. No filter")
+    for i, asset in enumerate(accounts, start=1):
+        console.print(f"  {i}. {asset['attributes']['name']}")
+
+    choices = ["0"] + [str(i) for i in range(1, len(accounts) + 1)]
+    choice = Prompt.ask("Choose account", choices=choices, default="0", show_choices=False)
+    account = None
+    if choice != "0":
+        account = accounts[int(choice) - 1]["attributes"]["name"]
+        console.print(f"Filtering by: [bold]{account}[/bold]")
+
+    rows = _parse_csv_for_check(csv_path, config.check_missing)
+    console.print(f"Found [bold]{len(rows)}[/bold] expense(s) in [cyan]{csv_path.name}[/cyan]")
+
+    missing = []
+    with console.status("[bold green]Checking...") as status:
+        for i, row in enumerate(rows, 1):
+            status.update(f"[bold green]Checking {i}/{len(rows)}: {row['date_str']} €{row['amount']:.2f}")
+            found = _find_in_firefly(firefly, row["date"], row["value_date"], row["amount"], account)
+            if not found:
+                missing.append(row)
+
+    if not missing:
+        console.print(f"[green]✓ All {len(rows)} transaction(s) found in Firefly III[/green]")
+        return
+
+    console.print(f"\n[yellow]⚠ {len(missing)} missing transaction(s):[/yellow]\n")
+
+    table = Table(box=box.ROUNDED, show_header=True, header_style="bold magenta")
+    table.add_column("Date", style="cyan", no_wrap=True)
+    table.add_column("Amount", justify="right", style="bold red")
+    table.add_column("Description", style="white")
+
+    for row in missing:
+        table.add_row(row["date_str"], f"€{row['amount']:.2f}", row["description"][:100])
+
+    console.print(table)
+
+
 def find_duplicates_per_day(firefly: FireflyClient):
     """Find duplicate transactions per day.
 
@@ -619,6 +754,7 @@ def main():
         console.print("  [red][C][/red]reate        - Create transactions")
         console.print("  [red][R][/red]ecurrence    - Create recurrences transaction")
         console.print("  [red][D][/red]uplicates    - Check for duplicates per day")
+        console.print("  [red][M][/red]issing       - Check for missing transactions from CSV")
         console.print("  [red][E][/red]xit          - Exit application")
 
         action = Prompt.ask(
@@ -632,6 +768,8 @@ def main():
                 "r",
                 "duplicates",
                 "d",
+                "missing",
+                "m",
                 "exit",
                 "e",
             ],
@@ -646,6 +784,7 @@ def main():
             "c": "create",
             "r": "recurrence",
             "d": "duplicates",
+            "m": "missing",
             "e": "exit",
         }
         action = action_map.get(action, action)
@@ -661,6 +800,8 @@ def main():
             create_recurrence_transactions(config, firefly)
         elif action == "duplicates":
             find_duplicates_per_day(firefly)
+        elif action == "missing":
+            check_missing_transactions(config, firefly)
         elif action == "exit":
             console.print("[yellow]Exiting[/yellow]")
             break
