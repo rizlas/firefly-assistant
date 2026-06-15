@@ -89,6 +89,27 @@ class FireflyClient:
         data = self.search_transactions(f'external_id:"{external_id}"', limit=1)
         return len(data) >= 1
 
+    def update_external_id(self, firefly_id: str, new_external_id: str, existing: dict):
+        splits = existing.get("attributes", {}).get("transactions", [])
+        if not splits:
+            return
+        split = splits[0]
+        payload = {
+            "transactions": [
+                {
+                    "type": split.get("type"),
+                    "date": split.get("date"),
+                    "amount": split.get("amount"),
+                    "description": split.get("description", ""),
+                    "source_name": split.get("source_name", ""),
+                    "destination_name": split.get("destination_name", ""),
+                    "currency_code": split.get("currency_code", "EUR"),
+                    "external_id": new_external_id,
+                }
+            ]
+        }
+        self._put(f"transactions/{firefly_id}", payload)
+
     def get_accounts(self, type):
         """Get accounts by type (asset, expense, revenue)."""
         return self._get("accounts", type=type)

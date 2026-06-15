@@ -662,6 +662,42 @@ def check_missing_transactions(config: Config, firefly: FireflyClient) -> None:
     console.print(table)
 
 
+def update_external_id_action(firefly: FireflyClient) -> None:
+    old_id = Prompt.ask("Current external_id")
+    if not old_id.strip():
+        return
+
+    with console.status("[bold green]Searching..."):
+        results = firefly.search_transactions(f'external_id:"{old_id.strip()}"', limit=1)
+
+    if not results:
+        console.print(f"[red]No transaction found with external_id:[/red] {old_id}")
+        return
+
+    tx_data = results[0]
+    split = tx_data.get("attributes", {}).get("transactions", [{}])[0]
+
+    console.print("\n[green]Found:[/green]")
+    console.print(f"  Date:        {str(split.get('date', ''))[:10]}")
+    console.print(f"  Description: {split.get('description', '')}")
+    console.print(f"  Amount:      €{float(split.get('amount', 0)):.2f}")
+    console.print(f"  From:        {split.get('source_name', '')}")
+    console.print(f"  To:          {split.get('destination_name', '')}")
+    console.print(f"  External ID: [dim]{split.get('external_id', '')}[/dim]")
+
+    new_id = Prompt.ask("\nNew external_id")
+    if not new_id.strip():
+        console.print("[yellow]Cancelled[/yellow]")
+        return
+
+    if not Confirm.ask(f"Update external_id to [cyan]{new_id}[/cyan]?", default=False):
+        console.print("[yellow]Cancelled[/yellow]")
+        return
+
+    firefly.update_external_id(tx_data["id"], new_id.strip(), tx_data)
+    console.print(f"[green]✓[/green] External_id updated to [cyan]{new_id}[/cyan]")
+
+
 def find_duplicates_per_day(firefly: FireflyClient):
     """Find duplicate transactions per day.
 
@@ -755,6 +791,7 @@ def main():
         console.print("  [red][R][/red]ecurrence    - Create recurrences transaction")
         console.print("  [red][D][/red]uplicates    - Check for duplicates per day")
         console.print("  [red][M][/red]issing       - Check for missing transactions from CSV")
+        console.print("  [red][U][/red]pdate        - Update external_id of a transaction")
         console.print("  [red][E][/red]xit          - Exit application")
 
         action = Prompt.ask(
@@ -770,6 +807,8 @@ def main():
                 "d",
                 "missing",
                 "m",
+                "update",
+                "u",
                 "exit",
                 "e",
             ],
@@ -785,6 +824,7 @@ def main():
             "r": "recurrence",
             "d": "duplicates",
             "m": "missing",
+            "u": "update",
             "e": "exit",
         }
         action = action_map.get(action, action)
@@ -802,6 +842,8 @@ def main():
             find_duplicates_per_day(firefly)
         elif action == "missing":
             check_missing_transactions(config, firefly)
+        elif action == "update":
+            update_external_id_action(firefly)
         elif action == "exit":
             console.print("[yellow]Exiting[/yellow]")
             break
