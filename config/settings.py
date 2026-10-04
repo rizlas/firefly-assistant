@@ -79,6 +79,8 @@ class CardMapping:
     description: str = ""
     parser: str = None
     completed_states: List[str] = None
+    # States to ignore entirely (e.g. not yet settled by the bank)
+    skip_states: List[str] = None
     # PREPAID only fields
     positive_is_transfer: bool = False
     transfer_specs: List[dict] = None
@@ -88,6 +90,8 @@ class CardMapping:
             self.transfer_specs = []
         if self.completed_states is None:
             self.completed_states = []
+        if self.skip_states is None:
+            self.skip_states = []
         if self.parser is None:
             raise ValueError(
                 f"Missing 'parser' field for card mapping '{self.asset_account}'. "
@@ -105,6 +109,7 @@ class CardMapping:
             return StandardCardBehavior(
                 parser=self.parser,
                 completed_states=self.completed_states,
+                skip_states=self.skip_states,
             )
         elif self.card_type.upper() == "PREPAID":
             return PrepaidCardBehavior(
@@ -112,6 +117,7 @@ class CardMapping:
                 transfer_specs=self.transfer_specs,
                 parser=self.parser,
                 completed_states=self.completed_states,
+                skip_states=self.skip_states,
             )
         else:
             raise ValueError(
@@ -212,6 +218,7 @@ class Config:
                 description=m.get("description", ""),
                 parser=m["parser"],
                 completed_states=m.get("completed_states", []),
+                skip_states=m.get("skip_states", []),
                 positive_is_transfer=m.get("positive_is_transfer", False),
                 transfer_specs=m.get("transfer_specs", []),
             )

@@ -51,6 +51,7 @@ class StandardCardBehavior:
     type: CardType = CardType.STANDARD
     all_positive: bool = True
     completed_states: List[str] = field(default_factory=list)
+    skip_states: List[str] = field(default_factory=list)
     parser: str = None
 
 
@@ -112,6 +113,7 @@ class PrepaidCardBehavior:
     positive_is_transfer: bool = False
     transfer_specs: List[str] = field(default_factory=list)
     completed_states: List[str] = field(default_factory=list)
+    skip_states: List[str] = field(default_factory=list)
     parser: str = None
 
     def __post_init__(self):

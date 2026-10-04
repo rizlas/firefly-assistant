@@ -43,7 +43,7 @@ class Transaction:
         self.notes = notes or ""
         self.state = state or ""
         self.card = card
-        self.id = id or self._generate_id()
+        self.id = id or self.generate_id()
 
     def is_transfer(self) -> bool:
         return self.type == TransactionType.TRANSFER
@@ -85,7 +85,7 @@ class Transaction:
                 continue
         raise ValueError(f"Unable to parse date: {date_str}")
 
-    def _generate_id(self):
+    def generate_id(self):
         raw = f"{self.date}|{self.account_mapping.strip().lower()}|{self.total:.2f}"
         uid = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:12]
         return uid

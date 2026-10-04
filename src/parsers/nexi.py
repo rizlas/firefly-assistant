@@ -23,12 +23,21 @@ class NexiParser(BaseParser):
         ws = wb.active
         card_info = ws["B8"].value
 
+        skip_states = {s.strip().lower() for s in self.behavior.skip_states}
+
         transactions = []
         for row in ws.iter_rows(min_row=11):
             date = row[2].value  # Column C
+            reference = row[3].value  # Column D
             raw_account = row[5].value  # Column F
             state = row[6].value  # Column G
             total = row[9].value  # Column J
+
+            # Rows not yet settled carry a provisional date and amount and have
+            # no reference: skipping them means they get imported on a later
+            # run, with their final values and a stable external_id.
+            if (state or "").strip().lower() in skip_states:
+                continue
 
             # Determine the transaction type, normalize the amount, and map the account
             tx_type, transfer_type, total = self.classify_transaction(
@@ -58,7 +67,10 @@ class NexiParser(BaseParser):
 
             category = self.auto_categorize(destination_account)
 
+            # The bank reference is stable across exports; fall back to the
+            # computed hash for rows that have none (e.g. branch top-ups).
             tx = Transaction(
+                id=reference,
                 date=date,
                 description="",
                 source_account=asset_account,
@@ -73,7 +85,7 @@ class NexiParser(BaseParser):
             )
 
             if skip_already_imported:
-                if self.firefly_client.transaction_exists(tx.id):
+                if self.firefly_client.transaction_exists(tx.id, tx.generate_id()):
                     continue
 
             transactions.append(tx)

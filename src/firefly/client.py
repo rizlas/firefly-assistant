@@ -85,9 +85,19 @@ class FireflyClient:
             limit=limit,
         )
 
-    def transaction_exists(self, external_id):
-        data = self.search_transactions(f'external_id:"{external_id}"', limit=1)
-        return len(data) >= 1
+    def transaction_exists(self, external_id, *fallback_ids):
+        """True if any of the given external_ids is already in Firefly.
+
+        Transactions imported before the switch to the bank reference carry
+        the hash-based external_id, so that value can be passed as fallback to
+        avoid importing them a second time.
+        """
+        for candidate in dict.fromkeys([external_id, *fallback_ids]):
+            if not candidate:
+                continue
+            if self.search_transactions(f'external_id:"{candidate}"', limit=1):
+                return True
+        return False
 
     def update_external_id(self, firefly_id: str, new_external_id: str, existing: dict):
         splits = existing.get("attributes", {}).get("transactions", [])
@@ -124,7 +134,7 @@ class FireflyClient:
         Returns:
             True if the transaction was created, False if it already exists
         """
-        if self.transaction_exists(tx.id):
+        if self.transaction_exists(tx.id, tx.generate_id()):
             return False
 
         # Determine the account name that should be mapped and created or updated based
