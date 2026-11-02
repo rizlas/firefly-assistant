@@ -510,20 +510,22 @@ def create_recurrence_transactions(config: Config, firefly: FireflyClient) -> No
                     tags=rec_tx.tags,
                 )
 
-            if not tx.category_name:
-                console.print(f"[yellow]Transaction {tx.id} has no category.[/yellow]")
+                if not tx.category_name:
+                    console.print(
+                        f"[yellow]Transaction {tx.id} has no category.[/yellow]"
+                    )
 
-            res = firefly.create_transaction(tx)
+                res = firefly.create_transaction(tx)
 
-            if res:
-                console.print(
-                    "[green]✓[/green] Recurrence transaction "
-                    f"{tx.description} created."
-                )
-            else:
-                console.print(
-                    f"[red]Failed to create transaction {tx.description}[/red]"
-                )
+                if res:
+                    console.print(
+                        "[green]✓[/green] Recurrence transaction "
+                        f"{tx.description} created."
+                    )
+                else:
+                    console.print(
+                        f"[red]Failed to create transaction {tx.description}[/red]"
+                    )
         else:
             console.print("[yellow]Cancelled[/yellow]")
 
